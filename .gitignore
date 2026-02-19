@@ -1,0 +1,28 @@
+# Docker volumes
+n8n_data/
+comfyui/models/
+comfyui/output/
+comfyui/input/
+
+# Node modules
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Cache
+.cache/

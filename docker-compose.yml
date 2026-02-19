@@ -1,0 +1,55 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-social-automation
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_TUNNEL_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=UTC
+    volumes:
+      - ./n8n_data:/home/node/.n8n
+    networks:
+      - social-automation-network
+    restart: on-failure:5
+
+  comfyui:
+    build:
+      context: .
+      dockerfile: Dockerfile.comfyui
+    container_name: comfyui-social-automation
+    ports:
+      - "8188:8188"
+    volumes:
+      - ./comfyui/models:/comfyui/models
+      - ./comfyui/output:/comfyui/output
+      - ./comfyui/input:/comfyui/input
+    networks:
+      - social-automation-network
+    restart: on-failure:5
+    environment:
+      - CUDA_VISIBLE_DEVICES=""
+    # Uncomment the line below if you want to use GPU (NVIDIA)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+networks:
+  social-automation-network:
+    driver: bridge
+
+volumes:
+  n8n_data:
+    driver: local
+  comfyui_models:
+    driver: local
+  comfyui_output:
+    driver: local

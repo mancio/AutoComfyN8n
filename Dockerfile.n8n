@@ -1,0 +1,28 @@
+FROM node:18-slim
+
+# Install system dependencies including wget for healthcheck
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create n8n user
+RUN useradd -m n8n
+
+# Set working directory
+WORKDIR /home/n8n
+
+# Install n8n globally
+RUN npm install -g n8n
+
+# Create data directory
+RUN mkdir -p /home/n8n/.n8n && chown -R n8n:n8n /home/n8n
+
+# Switch to non-root user
+USER n8n
+
+EXPOSE 5678
+
+CMD ["node", "/usr/local/lib/node_modules/n8n/bin/n8n"]
