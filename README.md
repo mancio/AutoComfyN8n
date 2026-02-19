@@ -57,13 +57,23 @@ To enable NVIDIA GPU support in ComfyUI:
 ## Directory Structure
 
 ```
-social-automation/
+AutoComfyN8n/
 ├── docker-compose.yml
-├── n8n_data/              # N8N workflow and settings
-├── comfyui/
-│   ├── models/            # AI models (checkpoints, VAE, etc.)
-│   ├── output/            # Generated images output
-│   └── input/             # Input images for processing
+├── Dockerfile.n8n
+├── Dockerfile.comfyui
+├── README.md
+├── .gitignore
+├── .env.example
+├── n8n_data/
+│   └── workflows/         # Example N8N workflows
+│       └── test_comfyui_integration.json
+└── comfyui/
+    ├── models/            # AI models (checkpoints, VAE, etc.)
+    │   └── checkpoints/   # Put .safetensors files here
+    ├── output/            # Generated images output
+    ├── input/             # Input images for processing
+    └── workflows/         # Example ComfyUI workflows
+        └── simple_text_to_image.json
 ```
 
 ## Next Steps
@@ -71,6 +81,70 @@ social-automation/
 1. **Download Models**: Add your AI models to `comfyui/models/`
 2. **Create Workflows**: Design automation workflows in N8N
 3. **Connect Services**: Use N8N to call ComfyUI API endpoints
+
+## Testing the Integration
+
+This project includes example workflows to test N8N and ComfyUI integration.
+
+### Step 1: Download a Model
+
+First, download a Stable Diffusion model (needed for image generation):
+
+```powershell
+# Download SD 1.5 model (~2GB) - Windows PowerShell
+Invoke-WebRequest -Uri "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors" -OutFile ".\comfyui\models\checkpoints\v1-5-pruned.safetensors"
+```
+
+Or use curl (bash/Linux/Mac):
+```bash
+curl -L -o ./comfyui/models/checkpoints/v1-5-pruned.safetensors \
+  "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors"
+```
+
+### Step 2: Load ComfyUI Workflow (Optional)
+
+1. Open ComfyUI: http://localhost:8188
+2. Click "Load" button
+3. Select: `comfyui/workflows/simple_text_to_image.json`
+4. This workflow shows a basic text-to-image setup
+
+### Step 3: Import N8N Workflow
+
+1. Open N8N: http://localhost:5678
+2. Set up your account (first time only)
+3. Click "Import from File"
+4. Select: `n8n_data/workflows/test_comfyui_integration.json`
+5. Click "Activate" to enable the workflow
+
+### Step 4: Test the Integration
+
+Once the workflow is active in N8N, trigger it with:
+
+**Windows PowerShell:**
+```powershell
+Invoke-RestMethod -Uri "http://localhost:5678/webhook/test-comfy" -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"prompt": "a beautiful sunset over mountains"}'
+```
+
+**curl (bash/Linux/Mac):**
+```bash
+curl -X POST http://localhost:5678/webhook/test-comfy \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "a beautiful sunset over mountains"}'
+```
+
+### Step 5: Check the Results
+
+- Generated images will be in: `comfyui/output/`
+- The webhook will return a JSON response with the prompt ID
+- You can view the generation progress in ComfyUI: http://localhost:8188
+
+### What Happens?
+
+1. 🎯 N8N receives your webhook with a text prompt
+2. 🚀 N8N sends the prompt to ComfyUI API
+3. 🎨 ComfyUI generates an image based on your prompt
+4. 💾 Image is saved to `comfyui/output/`
+5. ✅ N8N returns success response
 
 ## Stopping the Services
 
