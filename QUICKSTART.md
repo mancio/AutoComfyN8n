@@ -11,6 +11,128 @@ docker compose ps
 # You should see both containers "Up"
 ```
 
+## How N8N and ComfyUI Work Together
+
+Before diving into testing, let's understand how these services interact:
+
+### Architecture Overview
+
+```
+User → N8N Webhook → ComfyUI API → Image Generation → Output Folder
+```
+
+### Step-by-Step Flow
+
+#### 1. **User Triggers N8N (Entry Point)**
+```powershell
+# You send a POST request to N8N's webhook
+Invoke-RestMethod -Uri "http://localhost:5678/webhook/test-comfy"
+  -Body '{"prompt": "a beautiful sunset"}'
+```
+
+#### 2. **N8N Receives the Request**
+The N8N workflow has a **Webhook node** that:
+- Listens at: `http://localhost:5678/webhook/test-comfy`
+- Receives the JSON with your prompt
+- Extracts the text prompt from the request body
+
+#### 3. **N8N Calls ComfyUI API**
+N8N uses an **HTTP Request node** to communicate with ComfyUI:
+```
+POST http://comfyui:8188/prompt
+```
+
+The request includes:
+- Your text prompt
+- Model to use (v1-5-pruned.safetensors)
+- Generation parameters (steps, seed, etc.)
+- Workflow definition (nodes and connections)
+
+**Important:** N8N uses `http://comfyui:8188` (Docker container name) NOT `http://localhost:8188`. Both containers share an internal Docker network called `social-automation-network`.
+
+#### 4. **ComfyUI Processes the Request**
+- Receives the workflow definition as JSON
+- Loads the Stable Diffusion model into memory
+- Encodes your text prompt
+- Generates the image using AI
+- Saves image to `comfyui/output/ComfyUI_xxxxx.png`
+
+#### 5. **N8N Returns Response**
+N8N sends back confirmation:
+```json
+{
+  "success": true,
+  "prompt_id": "abc123",
+  "message": "Image generation started"
+}
+```
+
+### Visual Representation
+
+```
+┌─────────────────┐
+│   Your Browser  │
+└────────┬────────┘
+         │ POST /webhook/test-comfy
+         │ {"prompt": "sunset"}
+         ▼
+┌─────────────────┐
+│      N8N        │ localhost:5678
+│  ┌───────────┐  │
+│  │  Webhook  │  │ Receives request
+│  └─────┬─────┘  │
+│        │        │
+│  ┌─────▼─────┐  │
+│  │HTTP Request│  │ Calls ComfyUI API
+│  └─────┬─────┘  │
+└────────┼────────┘
+         │ http://comfyui:8188/prompt
+         │ (Docker internal network)
+         ▼
+┌─────────────────┐
+│    ComfyUI      │ localhost:8188
+│  ┌───────────┐  │
+│  │ API Server│  │ Receives prompt
+│  └─────┬─────┘  │
+│        │        │
+│  ┌─────▼─────┐  │
+│  │ Generate  │  │ Creates image
+│  │   Image   │  │
+│  └─────┬─────┘  │
+│        │        │
+│  ┌─────▼─────┐  │
+│  │Save Output│  │
+│  └───────────┘  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  comfyui/output │
+│   image.png     │
+└─────────────────┘
+```
+
+### Why This Setup is Powerful
+
+1. **N8N orchestrates** - You can add:
+   - Scheduled triggers (generate images daily)
+   - Multiple prompts in sequence
+   - Conditional logic
+   - Database storage
+   - Social media posting
+
+2. **ComfyUI generates** - Focused on AI image creation
+   - Advanced workflows
+   - Multiple models
+   - Complex node graphs
+
+3. **Decoupled services** - Each does one thing well
+   - N8N = Automation logic
+   - ComfyUI = Image generation
+   - Easy to scale or replace either service
+
+---
+
 ## Step 1: Download Model (One-time setup)
 
 ```powershell
