@@ -6,6 +6,7 @@ import sys
 import urllib.request
 import urllib.error
 import base64
+import time
 
 DEFAULT_PROMPT = "a beautiful sunset over mountains, oil painting style"
 MODEL_URL = os.environ.get(
@@ -33,6 +34,7 @@ def main():
     models_dir = os.path.join(project_root, "comfyui", "models", "checkpoints")
     model_path = os.path.join(models_dir, MODEL_NAME)
     output_dir = os.path.join(project_root, "comfyui", "output")
+    workflow_path = os.path.join(project_root, "n8n_data", "workflows", "test_comfyui_integration.json")
 
     log("[1/5] Checking Docker containers...")
     try:
@@ -54,17 +56,66 @@ def main():
     else:
         log(f"Model already present: {MODEL_NAME}")
 
-    log("[3/5] Sending prompt to N8N webhook...")
-    body = json.dumps({"prompt": prompt}).encode("utf-8")
-
     auth_token = base64.b64encode(f"{N8N_USER}:{N8N_PASS}".encode("utf-8")).decode("utf-8")
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Basic {auth_token}",
     }
 
-    primary_url = "http://localhost:5678/webhook/test-comfy"
-    test_url = "http://localhost:5678/webhook-test/test-comfy"
+    if os.path.isfile(workflow_path):
+        log("[2.5/5] Importing N8N workflow via CLI...")
+        container_path = "/home/node/.n8n/workflows/test_comfyui_integration.json"
+        try:
+            run([
+                "docker",
+                "compose",
+                "exec",
+                "-T",
+                "n8n",
+                "n8n",
+                "import:workflow",
+                "--input",
+                container_path,
+            ])
+            result = run([
+                "docker",
+                "compose",
+                "exec",
+                "-T",
+                "n8n",
+                "n8n",
+                "list:workflow",
+            ], check=False)
+            workflow_id = None
+            for line in result.stdout.splitlines():
+                if "|" in line:
+                    wf_id, wf_name = line.split("|", 1)
+                    if wf_name.strip() == "Test ComfyUI Integration":
+                        workflow_id = wf_id.strip()
+                        break
+
+            if workflow_id:
+                run([
+                    "docker",
+                    "compose",
+                    "exec",
+                    "-T",
+                    "n8n",
+                    "n8n",
+                    "publish:workflow",
+                    "--id",
+                    workflow_id,
+                ], check=False)
+                run(["docker", "compose", "restart", "n8n"], check=False)
+                time.sleep(5)
+        except subprocess.CalledProcessError:
+            print("Failed to import workflow via CLI. Import manually if needed.")
+
+    log("[3/5] Sending prompt to N8N webhook...")
+    body = json.dumps({"prompt": prompt}).encode("utf-8")
+
+    primary_url = "http://localhost:5678/webhook/comfyui-integration-workflow/webhook/test-comfy"
+    test_url = "http://localhost:5678/webhook-test/comfyui-integration-workflow/webhook/test-comfy"
 
     response_text = None
     for url in (primary_url, test_url):

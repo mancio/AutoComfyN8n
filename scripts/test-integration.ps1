@@ -12,6 +12,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $modelsDir = Join-Path $projectRoot "comfyui\models\checkpoints"
 $modelPath = Join-Path $modelsDir $ModelName
 $outputDir = Join-Path $projectRoot "comfyui\output"
+$workflowPath = Join-Path $projectRoot "n8n_data\workflows\test_comfyui_integration.json"
 
 Write-Host "[1/5] Checking Docker containers..."
 $ps = & docker compose ps 2>$null
@@ -36,11 +37,40 @@ if (-not (Test-Path $modelPath)) {
     Write-Host "Model already present: $ModelName"
 }
 
+$authBytes = [Text.Encoding]::UTF8.GetBytes("$N8nUser`:$N8nPass")
+$authHeader = [Convert]::ToBase64String($authBytes)
+$headers = @{"Content-Type"="application/json"; "Authorization"="Basic $authHeader"}
+
+if (Test-Path $workflowPath) {
+    Write-Host "[2.5/5] Importing N8N workflow via CLI..."
+    $containerPath = "/home/node/.n8n/workflows/test_comfyui_integration.json"
+    try {
+        & docker compose exec -T n8n n8n import:workflow --input $containerPath | Out-Null
+        $list = & docker compose exec -T n8n n8n list:workflow
+        $workflowId = $null
+        foreach ($line in $list) {
+            if ($line -match "\|") {
+                $parts = $line -split "\|", 2
+                if ($parts[1].Trim() -eq "Test ComfyUI Integration") {
+                    $workflowId = $parts[0].Trim()
+                    break
+                }
+            }
+        }
+
+        if ($workflowId) {
+            & docker compose exec -T n8n n8n publish:workflow --id $workflowId | Out-Null
+            & docker compose restart n8n | Out-Null
+            Start-Sleep -Seconds 5
+        }
+    } catch {
+        Write-Host "Failed to import workflow via CLI. Import manually if needed."
+    }
+}
+
 Write-Host "[3/5] Sending prompt to N8N webhook..."
 $body = @{ prompt = $Prompt } | ConvertTo-Json -Compress
-$securePass = ConvertTo-SecureString $N8nPass -AsPlainText -Force
-$credential = New-Object System.Management.Automation.PSCredential($N8nUser, $securePass)
-$response = Invoke-RestMethod -Uri "http://localhost:5678/webhook/test-comfy" -Method POST -Headers @{"Content-Type"="application/json"} -Body $body -Credential $credential
+$response = Invoke-RestMethod -Uri "http://localhost:5678/webhook/test-comfy" -Method POST -Headers $headers -Body $body
 
 Write-Host "[4/5] N8N response:"
 $response | ConvertTo-Json -Depth 4

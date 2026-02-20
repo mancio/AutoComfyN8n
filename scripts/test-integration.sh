@@ -12,6 +12,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 MODELS_DIR="${PROJECT_ROOT}/comfyui/models/checkpoints"
 MODEL_PATH="${MODELS_DIR}/${MODEL_NAME}"
 OUTPUT_DIR="${PROJECT_ROOT}/comfyui/output"
+WORKFLOW_PATH="${PROJECT_ROOT}/n8n_data/workflows/test_comfyui_integration.json"
 
 log() {
   printf "[%s] %s\n" "$(date +%H:%M:%S)" "$1"
@@ -36,6 +37,21 @@ if [[ ! -f "${MODEL_PATH}" ]]; then
   curl -L "${MODEL_URL}" -o "${MODEL_PATH}"
 else
   log "Model already present: ${MODEL_NAME}"
+fi
+
+if [[ -f "${WORKFLOW_PATH}" ]]; then
+  log "Importing N8N workflow via CLI..."
+  container_path="/home/node/.n8n/workflows/test_comfyui_integration.json"
+  if ! docker compose exec -T n8n n8n import:workflow --input "${container_path}" >/dev/null; then
+    log "Failed to import workflow via CLI. Import manually if needed."
+  else
+    workflow_id=$(docker compose exec -T n8n n8n list:workflow | awk -F'|' '$2 ~ /Test ComfyUI Integration/ {print $1; exit}')
+    if [[ -n "${workflow_id}" ]]; then
+      docker compose exec -T n8n n8n publish:workflow --id "${workflow_id}" >/dev/null || true
+      docker compose restart n8n >/dev/null || true
+      sleep 5
+    fi
+  fi
 fi
 
 log "Sending prompt to N8N webhook..."
