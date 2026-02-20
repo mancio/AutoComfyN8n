@@ -114,35 +114,36 @@ def main():
     time.sleep(3)
     
     # Verify model is ready
-    log("\n[5/5] Checking image generation requirements...")
+    log("\n[5/5] Checking image generation setup...")
     model_path = Path("comfyui/models/checkpoints/v1-5-pruned.safetensors")
     output_path = Path("comfyui/output")
     
-    if model_path.exists():
-        log(f"✓ Model ready: {model_path.name}")
-    else:
-        log(f"⚠ Model not found at {model_path}")
+    if not model_path.exists():
+        log(f"⚠ Model not found: {model_path}")
+        return 1
+    log(f"✓ Model ready: {model_path.name}")
     
     if not output_path.exists():
         output_path.mkdir(parents=True, exist_ok=True)
-    log(f"✓ Output folder ready: {output_path}")
+    log(f"✓ Output folder ready")
     
-    log("\n" + "="*50)
+    # List any existing images
+    images = list(output_path.glob("*.png"))
+    if images:
+        log(f"\n✓ Found {len(images)} generated image(s):")
+        for img in sorted(images, key=lambda p: p.stat().st_mtime, reverse=True)[:5]:
+            log(f"  ✓ {img.name}")
+    else:
+        log("\n📝 No images generated yet")
+    
+    log("\n" + "="*60)
     log("✓ System Ready!")
-    log("="*50)
-    print("\n📝 Your prompt will be used:")
-    print(f"   '{prompt}'")
-    print("\n🎨 To generate images:")
-    print("   1. Open http://localhost:8188 (ComfyUI UI)")
-    print("   2. Load the default workflow")
-    print("   3. Edit the text prompt node with your prompt")
-    print("   4. Click 'Queue Prompt' to generate")
-    print("\n📊 Results appear in:")
+    log("="*60)
+    print(f"\nYour prompt: '{prompt}'")
+    print("\n🎨 To generate images, open ComfyUI UI:")
+    print("   http://localhost:8188")
+    print("\n📁 Images will be saved to:")
     print(f"   {output_path.absolute()}")
-    print("\n🔗 Or automate with N8N:")
-    print("   1. Open http://localhost:5678")
-    print("   2. Login: admin@example.com / admin123")
-    print("   3. Create workflow to trigger ComfyUI")
     return 0
 
 if __name__ == "__main__":
