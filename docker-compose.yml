@@ -1,7 +1,7 @@
 services:
   n8n:
     image: n8nio/n8n:latest
-    container_name: n8n-social-automation
+    container_name: n8n-love-comfy
     ports:
       - "5678:5678"
     environment:
@@ -14,14 +14,14 @@ services:
     volumes:
       - ./n8n_data:/home/node/.n8n
     networks:
-      - social-automation-network
+      - n8n-love-comfy-network
     restart: on-failure:5
 
   comfyui:
     build:
       context: .
       dockerfile: Dockerfile.comfyui
-    container_name: comfyui-social-automation
+    container_name: comfyui-love-comfy
     ports:
       - "8188:8188"
     volumes:
@@ -29,7 +29,7 @@ services:
       - ./comfyui/output:/comfyui/output
       - ./comfyui/input:/comfyui/input
     networks:
-      - social-automation-network
+      - n8n-love-comfy-network
     restart: on-failure:5
     environment:
       - CUDA_VISIBLE_DEVICES=""
@@ -43,7 +43,7 @@ services:
     #           capabilities: [gpu]
 
 networks:
-  social-automation-network:
+  n8n-love-comfy-network:
     driver: bridge
 
 volumes:

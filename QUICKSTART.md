@@ -48,7 +48,7 @@ The request includes:
 - Generation parameters (steps, seed, etc.)
 - Workflow definition (nodes and connections)
 
-**Important:** N8N uses `http://comfyui:8188` (Docker container name) NOT `http://localhost:8188`. Both containers share an internal Docker network called `social-automation-network`.
+**Important:** N8N uses `http://comfyui:8188` (Docker container name) NOT `http://localhost:8188`. Both containers share an internal Docker network called `n8n-love-comfy-network`.
 
 #### 4. **ComfyUI Processes the Request**
 - Receives the workflow definition as JSON

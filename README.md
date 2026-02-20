@@ -5,13 +5,13 @@ A Docker-based setup for social media automation workflows using N8N orchestrati
 ## Services
 
 ### N8N (Workflow Automation)
-- **Container**: n8n-social-automation
+- **Container**: n8n-love-comfy
 - **Port**: 5678
 - **Access**: http://localhost:5678
 - **Data**: Stored in `./n8n_data`
 
 ### ComfyUI (Image Generation)
-- **Container**: comfyui-social-automation
+- **Container**: comfyui-love-comfy
 - **Port**: 8188
 - **Access**: http://localhost:8188
 - **Models**: Stored in `./comfyui/models`
