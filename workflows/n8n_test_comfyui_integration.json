@@ -11,21 +11,15 @@
     },
     {
       "parameters": {
-        "url": "http://comfyui:8188/prompt",
+        "url": "http://localhost:8188/prompt",
         "authentication": "none",
         "method": "POST",
-        "sendBody": true,
         "bodyParameters": {
-          "parameters": [
-            {
-              "name": "client_id",
-              "value": "n8n-{{ $now.toFormat('yyyyMMddHHmmss') }}"
-            },
-            {
-              "name": "prompt",
-              "value": "={{ {  \"1\": { \"inputs\": { \"text\": $json.prompt || \"a beautiful sunset\" }, \"class_type\": \"CLIPTextEncode(prompt)\" } } | JSON.stringify() }}"
-            }
-          ]
+          "parameters": []
+        },
+        "body": {
+          "contentType": "application/json",
+          "raw": "{\"client_id\": \"n8n-client\", \"prompt\": {\"1\": {\"inputs\": {\"text\": \"a beautiful sunset over mountains\"}, \"class_type\": \"CLIPTextEncode(prompt)\"}}}"
         },
         "options": {}
       },
