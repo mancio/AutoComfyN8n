@@ -1,0 +1,84 @@
+{
+  "name": "Test ComfyUI Integration",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "test-comfy",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://comfyui:8188/prompt",
+        "authentication": "none",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "client_id",
+              "value": "n8n-{{ $now.toFormat('yyyyMMddHHmmss') }}"
+            },
+            {
+              "name": "prompt",
+              "value": "={{ {  \"1\": { \"inputs\": { \"text\": $json.prompt || \"a beautiful sunset\" }, \"class_type\": \"CLIPTextEncode(prompt)\" } } | JSON.stringify() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http_request",
+      "name": "Call ComfyUI API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    success: true,\n    message: \"Prompt sent to ComfyUI\",\n    responseData: $json\n  }\n]"
+      },
+      "id": "function",
+      "name": "Process Response",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [750, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Call ComfyUI API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call ComfyUI API": {
+      "main": [
+        [
+          {
+            "node": "Process Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "5e7c8b3c-1f2a-4b8d-9e5f-3c7e9b2a1d4f",
+  "meta": {
+    "instanceId": "default"
+  },
+  "id": "comfyui-integration-workflow"
+}

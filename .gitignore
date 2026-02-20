@@ -1,5 +1,6 @@
-# Docker volumes
+# Docker volumes (but keep workflow files)
 n8n_data/
+!n8n_data/workflows/
 comfyui/models/
 comfyui/output/
 comfyui/input/

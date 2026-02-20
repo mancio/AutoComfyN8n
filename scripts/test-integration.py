@@ -18,6 +18,35 @@ def run(cmd, check=True):
 def log(msg):
     print(msg)
 
+def ensure_containers_running():
+    """Ensure Docker containers are running, start them if not"""
+    log("Checking Docker containers...")
+    
+    try:
+        result = run(["docker", "compose", "ps", "--services", "--filter", "status=running"], check=False)
+        running_services = result.stdout.strip().split('\n') if result.stdout.strip() else []
+        
+        # Check if both required services are running
+        if 'n8n' in running_services and 'comfyui' in running_services:
+            log("✓ Containers are already running\n")
+            return True
+    except Exception as e:
+        log(f"⚠ Could not check container status: {e}")
+    
+    # Start containers if not running
+    log("Starting Docker containers...")
+    try:
+        result = run(["docker", "compose", "up", "-d"], check=False)
+        if result.returncode == 0:
+            log("✓ Containers started successfully\n")
+            return True
+        else:
+            log(f"✗ Failed to start containers: {result.stderr}")
+            return False
+    except Exception as e:
+        log(f"✗ Error starting containers: {e}")
+        return False
+
 def ensure_workflow_exists():
     """Ensure the workflow exists in N8N database"""
     db_path = Path("n8n_data/database.sqlite")
@@ -29,80 +58,66 @@ def ensure_workflow_exists():
     cur = conn.cursor()
     
     # Check if workflow already exists
-    cur.execute("SELECT id FROM workflow_entity WHERE id = ?", ["comfyui-test"])
-    if cur.fetchone():
+    cur.execute("SELECT id FROM workflow_entity WHERE name = ?", ["Test ComfyUI Integration"])
+    existing = cur.fetchone()
+    if existing:
         log("✓ Workflow already exists in database")
         conn.close()
         return True
     
-    # Create a simple workflow with Manual Trigger (no webhook needed)
-    log("[Creating N8N workflow...]")
-    workflow = {
-        "name": "ComfyUI Test",
-        "nodes": [
-            {
-                "id": "manual",
-                "name": "When Clicked",
-                "type": "n8n-nodes-base.manualTrigger",
-                "typeVersion": 1,
-                "position": [250, 300],
-                "parameters": {}
-            },
-            {
-                "id": "notify",
-                "name": "Send Response",
-                "type": "n8n-nodes-base.respondToWebhook",
-                "typeVersion": 1,
-                "position": [500, 300],
-                "parameters": {
-                    "responseCode": 200
-                }
-            }
-        ],
-        "connections": {
-            "When Clicked": {
-                "main": [[{"node": "Send Response", "type": "main", "index": 0}]]
-            }
-        },
-        "active": True,
-        "settings": {},
-        "versionId": "v1"
-    }
+    # Load workflow from file
+    workflow_file = Path("workflows/n8n_test_comfyui_integration.json")
+    if not workflow_file.exists():
+        log(f"⚠ Workflow file not found: {workflow_file}")
+        conn.close()
+        return False
     
+    log("[Importing N8N workflow...]")
     try:
+        with open(workflow_file, 'r') as f:
+            workflow = json.load(f)
+        
+        # Generate unique ID
+        workflow_id = f"workflow-{int(time.time())}"
+        
         cur.execute("""
             INSERT INTO workflow_entity 
             (id, name, active, nodes, connections, versionId, createdAt, updatedAt)
             VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         """, [
-            "comfyui-test",
-            workflow['name'],
+            workflow_id,
+            workflow.get('name', 'ComfyUI Workflow'),
             1,
-            json.dumps(workflow['nodes']),
-            json.dumps(workflow['connections']),
-            workflow['versionId']
+            json.dumps(workflow.get('nodes', [])),
+            json.dumps(workflow.get('connections', {})),
+            'v1'
         ])
         conn.commit()
-        log("✓ Created workflow in database")
+        log(f"✓ Imported workflow: {workflow.get('name', 'ComfyUI Workflow')}")
         conn.close()
         return True
     except Exception as e:
-        log(f"✗ Failed to create workflow: {e}")
+        log(f"✗ Failed to import workflow: {e}")
         conn.close()
         return False
 
 def main():
     prompt = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_PROMPT
     
-    log("[1/4] Checking Docker containers...")
+    # Ensure containers are running
+    if not ensure_containers_running():
+        log("✗ Failed to start containers")
+        return 1
+    
+    log("[1/5] Checking Docker containers...")
     ps_out = run(["docker", "compose", "ps"], check=False).stdout
-    if "n8n-love-comfy" not in ps_out or "comfyui-love-comfy" not in ps_out:
+    if "n8n" not in ps_out or "comfyui" not in ps_out:
         log("✗ Containers not running")
         return 1
     log("✓ Containers are running")
     
     # Wait for services to be ready
-    log("[2/4] Waiting for services...")
+    log("[2/5] Waiting for services...")
     for i in range(30):
         try:
             with urllib.request.urlopen('http://localhost:5678/', timeout=1) as resp:
@@ -113,13 +128,13 @@ def main():
             pass
         time.sleep(1)
     
-    log("[3/4] Ensuring workflow exists...")
+    log("[3/5] Ensuring workflow exists...")
     if not ensure_workflow_exists():
         log("✗ Failed to set up workflow")
         return 1
     
     # Restart N8N to load database changes
-    log("[4/4] Reloading N8N...")
+    log("[4/5] Reloading N8N...")
     run(["docker", "compose", "restart", "n8n"], check=False)
     time.sleep(3)
     
