@@ -31,6 +31,7 @@ services:
       - ./comfyui/output:/comfyui/output
       - ./comfyui/input:/comfyui/input
       - ./comfyui/user:/comfyui/user
+      - ./workflows:/comfyui/workflows
     networks:
       - n8n-love-comfy-network
     restart: on-failure:5
