@@ -1,6 +1,6 @@
 # Social Automation with N8N and ComfyUI
 
-A Docker-based setup for social media automation workflows using N8N orchestration and ComfyUI for image generation.
+A Docker-based setup for social media automation workflows using N8N orchestration and ComfyUI for AI image generation. **Uses NVIDIA CUDA for GPU-accelerated image generation.**
 
 ## Services
 
@@ -21,7 +21,7 @@ A Docker-based setup for social media automation workflows using N8N orchestrati
 
 ### Prerequisites
 - Docker and Docker Compose installed
-- Optional: NVIDIA GPU with nvidia-docker for GPU acceleration
+- NVIDIA GPU with [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installed (CUDA 12.1+)
 
 ### Running the Stack
 
@@ -46,13 +46,16 @@ docker-compose logs -f comfyui
 - **N8N**: Open http://localhost:5678 in your browser
 - **ComfyUI**: Open http://localhost:8188 in your browser
 
-## GPU Support (Optional)
+## GPU Support (CUDA)
 
-To enable NVIDIA GPU support in ComfyUI:
+This project uses NVIDIA CUDA 12.1 by default for GPU-accelerated image generation.
 
-1. Install nvidia-docker on your system
-2. In `docker-compose.yml`, uncomment the `deploy` section under comfyui service
-3. Restart the services
+**Requirements:**
+- NVIDIA GPU with compatible drivers
+- [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) installed on the host
+- Docker Desktop with GPU support enabled (Windows: WSL2 backend)
+
+GPU passthrough is already configured in `docker-compose.yml`. If you don't have a GPU, ComfyUI will fall back to CPU mode (significantly slower).
 
 ## Directory Structure
 

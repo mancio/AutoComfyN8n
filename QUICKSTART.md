@@ -1,6 +1,7 @@
 # Quick Test Guide
 
 This guide will help you test the N8N ↔ ComfyUI integration in 5 minutes.
+**This project uses NVIDIA CUDA 12.1 for GPU-accelerated image generation.**
 
 ## Prerequisites Check
 

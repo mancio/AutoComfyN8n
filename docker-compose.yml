@@ -36,15 +36,14 @@ services:
       - n8n-love-comfy-network
     restart: on-failure:5
     environment:
-      - CUDA_VISIBLE_DEVICES=""
-    # Uncomment the line below if you want to use GPU (NVIDIA)
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+      - NVIDIA_VISIBLE_DEVICES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
 networks:
   n8n-love-comfy-network:

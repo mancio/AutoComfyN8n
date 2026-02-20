@@ -1,20 +1,31 @@
-FROM python:3.10-slim
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
 
 WORKDIR /comfyui
 
-# Install system dependencies
+# Avoid interactive prompts during install
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies + Python 3.10
 RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3.10-venv \
+    python3-pip \
     git \
     wget \
     build-essential \
     libopenblas-dev \
+    && ln -sf /usr/bin/python3.10 /usr/bin/python \
+    && ln -sf /usr/bin/pip3 /usr/bin/pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Clone ComfyUI
 RUN git clone https://github.com/comfyanonymous/ComfyUI.git . && \
     git checkout master
 
-# Install Python dependencies
+# Install PyTorch with CUDA 12.1 support
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Install remaining Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create directories
@@ -22,8 +33,9 @@ RUN mkdir -p models input output
 
 EXPOSE 8188
 
-# Set environment variables for CPU-only mode
-ENV PYTORCH_CUDA_ALLOC_CONF=""
+# Enable CUDA memory management
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
-# Run ComfyUI directly with CPU
-CMD ["python", "-u", "main.py", "--listen", "0.0.0.0", "--cpu"]
+# Run ComfyUI with GPU (auto-detects CUDA)
+CMD ["python", "-u", "main.py", "--listen", "0.0.0.0"]

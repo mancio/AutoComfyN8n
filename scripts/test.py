@@ -32,9 +32,9 @@ def ensure_containers_running():
 
     log("Starting Docker containers...")
     try:
-        result = run(["docker", "compose", "up", "-d"], check=False)
+        result = run(["docker", "compose", "up", "-d", "--build"], check=False)
         if result.returncode == 0:
-            log("✓ Containers recreated and started successfully\n")
+            log("✓ Containers built and started successfully\n")
             return True
 
         log(f"✗ Failed to start containers: {result.stderr}")
@@ -42,39 +42,6 @@ def ensure_containers_running():
     except Exception as e:
         log(f"✗ Error starting containers: {e}")
         return False
-
-def reset_database():
-    """Reset N8N database to clean state"""
-    log("🔄 Resetting database...")
-    
-    try:
-        db_path = Path("n8n_data/database.sqlite")
-        
-        # Stop n8n container
-        run(["docker", "compose", "stop", "n8n"], check=False)
-        time.sleep(2)
-        
-        # Remove database files
-        if db_path.exists():
-            db_path.unlink()
-            log("✓ Removed old database")
-        
-        # Remove WAL files
-        for wal_file in Path("n8n_data").glob("database.sqlite*"):
-            try:
-                wal_file.unlink()
-            except:
-                pass
-        
-        # Start n8n container
-        run(["docker", "compose", "up", "-d", "n8n"], check=False)
-        log("✓ Database reset, container restarted")
-        time.sleep(3)
-        
-        return True
-    except Exception as e:
-        log(f"⚠ Could not reset database: {e}")
-        return True
 
 def ensure_workflows_imported():
     """Import N8N workflow using n8n CLI command"""
@@ -271,7 +238,7 @@ def main():
         log("💡 Tips:")
         log("   - Modify prompts in the workflow nodes for custom results")
         log("   - Check output folder for saved images")
-        log("   - Use GPU mode if CUDA is available for faster generation")
+        log("   - CUDA GPU acceleration is enabled by default")
         return 0
     else:
         log("✗ System validation failed")
