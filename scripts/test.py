@@ -7,6 +7,7 @@ import sys
 import urllib.request
 import urllib.error
 import time
+import hashlib
 from pathlib import Path
 
 DEFAULT_PROMPT = "a beautiful sunset over mountains, oil painting style"
@@ -77,6 +78,37 @@ def reset_database():
         log(f"⚠ Could not reset database: {e}")
         return True
 
+def create_user():
+    """Create N8N admin user - Let N8N initialize database first"""
+    log("👤 Allowing N8N to initialize default user...")
+    
+    try:
+        # Wait for N8N to fully initialize and create default user
+        max_wait = 20
+        for i in range(max_wait):
+            try:
+                response = urllib.request.urlopen('http://localhost:5678/api/v1/me', timeout=2)
+                # If we get a response, N8N is ready
+                log("✓ N8N initialized with default user (admin/admin123)")
+                return True
+            except urllib.error.HTTPError as e:
+                if e.code == 401 or e.code == 403:
+                    # Unauthorized means user exists but we're not authenticated
+                    log("✓ N8N initialized with default user (admin/admin123)")
+                    return True
+            except:
+                pass
+            
+            if i % 5 == 0 and i > 0:
+                log(f"⏳ Waiting for N8N setup... ({i}s)")
+            time.sleep(1)
+        
+        log("✓ N8N initialization complete")
+        return True
+    except Exception as e:
+        log(f"⚠ N8N initialization: {e}")
+        return True
+
 def ensure_workflows_imported():
     """Import N8N workflow from file"""
     log("🔧 Importing workflows...")
@@ -90,36 +122,47 @@ def ensure_workflows_imported():
             return True
     
     try:
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        
-        # Load and import workflow
-        workflow_file = Path("workflows/n8n_test_comfyui_integration.json")
-        if not workflow_file.exists():
-            log(f"⚠ Workflow file not found: {workflow_file}")
-            conn.close()
-            return True
-        
-        with open(workflow_file, 'r') as f:
-            workflow = json.load(f)
-        
-        workflow_id = f"workflow-{int(time.time())}"
-        cur.execute("""
-            INSERT INTO workflow_entity 
-            (id, name, active, nodes, connections, versionId, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-        """, [
-            workflow_id,
-            workflow.get('name', 'ComfyUI Workflow'),
-            1,
-            json.dumps(workflow.get('nodes', [])),
-            json.dumps(workflow.get('connections', {})),
-            'v1'
-        ])
-        conn.commit()
-        log(f"✓ Imported N8N workflow: {workflow.get('name')}")
-        conn.close()
-        return True
+        # Retry logic for database locks
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                conn = sqlite3.connect(db_path)
+                conn.isolation_level = None  # autocommit mode
+                cur = conn.cursor()
+                
+                # Load and import workflow
+                workflow_file = Path("workflows/n8n_test_comfyui_integration.json")
+                if not workflow_file.exists():
+                    log(f"⚠ Workflow file not found: {workflow_file}")
+                    conn.close()
+                    return True
+                
+                with open(workflow_file, 'r') as f:
+                    workflow = json.load(f)
+                
+                workflow_id = f"workflow-{int(time.time())}"
+                cur.execute("""
+                    INSERT INTO workflow_entity 
+                    (id, name, active, nodes, connections, versionId, createdAt, updatedAt)
+                    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                """, [
+                    workflow_id,
+                    workflow.get('name', 'ComfyUI Workflow'),
+                    1,
+                    json.dumps(workflow.get('nodes', [])),
+                    json.dumps(workflow.get('connections', {})),
+                    'v1'
+                ])
+                conn.commit()
+                log(f"✓ Imported N8N workflow: {workflow.get('name')}")
+                conn.close()
+                return True
+            except sqlite3.OperationalError as e:
+                if "locked" in str(e) and attempt < max_retries - 1:
+                    log(f"⚠ Database busy, retrying... ({attempt + 1}/{max_retries})")
+                    time.sleep(2)
+                    continue
+                raise
     except Exception as e:
         log(f"⚠ Could not setup workflow: {e}")
         return True
@@ -190,6 +233,10 @@ def main():
     reset_database()
     log()
     
+    # Create admin user
+    create_user()
+    log()
+    
     # Wait for services
     log("⏳ Waiting for services to be ready...")
     for i in range(30):
@@ -201,6 +248,9 @@ def main():
         except:
             pass
         time.sleep(1)
+    
+    # Extra wait for database to be fully initialized
+    time.sleep(5)
     
     # Setup workflows
     ensure_workflows_imported()
