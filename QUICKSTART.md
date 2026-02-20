@@ -148,7 +148,7 @@ Invoke-WebRequest -Uri "https://huggingface.co/runwayml/stable-diffusion-v1-5/re
 ## Step 2: Import N8N Workflow
 
 1. Open http://localhost:5678
-2. Create account (if first time)
+2. Login with your configured owner credentials (`N8N_OWNER_EMAIL` / `N8N_OWNER_PASSWORD` from `docker-compose.yml`)
 3. Click **"+ Add workflow"** → **"Import from file"**
 4. Select: `n8n_data\workflows\test_comfyui_integration.json`
 5. Click the **"Inactive"** toggle to **Activate** the workflow
@@ -168,7 +168,7 @@ Invoke-RestMethod -Uri "http://localhost:5678/webhook/test-comfy" `
 If you enabled N8N basic auth, add credentials:
 
 ```powershell
-$cred = New-Object System.Management.Automation.PSCredential("admin", (ConvertTo-SecureString "admin123" -AsPlainText -Force))
+$cred = New-Object System.Management.Automation.PSCredential("admin@example.com", (ConvertTo-SecureString "ChangeMeNow123!" -AsPlainText -Force))
 Invoke-RestMethod -Uri "http://localhost:5678/webhook/test-comfy" `
   -Method POST `
   -Headers @{"Content-Type"="application/json"} `

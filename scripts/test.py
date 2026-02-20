@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Text-to-Image Integration Test - AutoComfyN8n"""
 import json
-import sqlite3
+import os
 import subprocess
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 import time
-import hashlib
 from pathlib import Path
 
 DEFAULT_PROMPT = "a beautiful sunset over mountains, oil painting style"
+OWNER_EMAIL = os.getenv("N8N_OWNER_EMAIL", "admin@example.com")
+OWNER_FIRST_NAME = os.getenv("N8N_OWNER_FIRST_NAME", "Admin")
+OWNER_LAST_NAME = os.getenv("N8N_OWNER_LAST_NAME", "User")
+OWNER_PASSWORD = os.getenv("N8N_OWNER_PASSWORD", "ChangeMeNow123!")
 
 def run(cmd, check=True):
     return subprocess.run(cmd, check=check, capture_output=True, text=True)
@@ -19,34 +22,29 @@ def log(msg=""):
     print(msg)
 
 def ensure_containers_running():
-    """Ensure Docker containers are running, start them if not"""
-    log("📦 Checking Docker containers...")
-    
+    """Recreate Docker containers on every test run"""
+    log("📦 Recreating Docker containers for a clean run...")
+
     try:
-        result = run(["docker", "compose", "ps", "--services", "--filter", "status=running"], check=False)
-        running_services = result.stdout.strip().split('\n') if result.stdout.strip() else []
-        
-        if 'n8n' in running_services and 'comfyui' in running_services:
-            log("✓ Containers are already running\n")
-            return True
+        run(["docker", "compose", "down"], check=False)
     except Exception as e:
-        log(f"⚠ Could not check container status: {e}")
-    
+        log(f"⚠ Could not stop/remove containers cleanly: {e}")
+
     log("Starting Docker containers...")
     try:
         result = run(["docker", "compose", "up", "-d"], check=False)
         if result.returncode == 0:
-            log("✓ Containers started successfully\n")
+            log("✓ Containers recreated and started successfully\n")
             return True
-        else:
-            log(f"✗ Failed to start containers: {result.stderr}")
-            return False
+
+        log(f"✗ Failed to start containers: {result.stderr}")
+        return False
     except Exception as e:
         log(f"✗ Error starting containers: {e}")
         return False
 
 def reset_database():
-    """Reset N8N database to clean state with default credentials"""
+    """Reset N8N database to clean state"""
     log("🔄 Resetting database...")
     
     try:
@@ -78,94 +76,79 @@ def reset_database():
         log(f"⚠ Could not reset database: {e}")
         return True
 
-def create_user():
-    """Create N8N admin user - Let N8N initialize database first"""
-    log("👤 Allowing N8N to initialize default user...")
-    
-    try:
-        # Wait for N8N to fully initialize and create default user
-        max_wait = 20
-        for i in range(max_wait):
-            try:
-                response = urllib.request.urlopen('http://localhost:5678/api/v1/me', timeout=2)
-                # If we get a response, N8N is ready
-                log("✓ N8N initialized with default user (admin/admin123)")
-                return True
-            except urllib.error.HTTPError as e:
-                if e.code == 401 or e.code == 403:
-                    # Unauthorized means user exists but we're not authenticated
-                    log("✓ N8N initialized with default user (admin/admin123)")
-                    return True
-            except:
-                pass
-            
-            if i % 5 == 0 and i > 0:
-                log(f"⏳ Waiting for N8N setup... ({i}s)")
-            time.sleep(1)
-        
-        log("✓ N8N initialization complete")
-        return True
-    except Exception as e:
-        log(f"⚠ N8N initialization: {e}")
-        return True
-
 def ensure_workflows_imported():
-    """Import N8N workflow from file"""
+    """Import N8N workflow using n8n CLI command"""
     log("🔧 Importing workflows...")
-    
-    db_path = Path("n8n_data/database.sqlite")
-    if not db_path.exists():
-        log("⚠ Database not found, retrying...")
-        time.sleep(2)
-        if not db_path.exists():
-            log("⚠ Database still not ready, skipping workflow import")
-            return True
-    
+
     try:
-        # Retry logic for database locks
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                conn = sqlite3.connect(db_path)
-                conn.isolation_level = None  # autocommit mode
-                cur = conn.cursor()
-                
-                # Load and import workflow
-                workflow_file = Path("workflows/n8n_test_comfyui_integration.json")
-                if not workflow_file.exists():
-                    log(f"⚠ Workflow file not found: {workflow_file}")
-                    conn.close()
-                    return True
-                
-                with open(workflow_file, 'r') as f:
-                    workflow = json.load(f)
-                
-                workflow_id = f"workflow-{int(time.time())}"
-                cur.execute("""
-                    INSERT INTO workflow_entity 
-                    (id, name, active, nodes, connections, versionId, createdAt, updatedAt)
-                    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-                """, [
-                    workflow_id,
-                    workflow.get('name', 'ComfyUI Workflow'),
-                    1,
-                    json.dumps(workflow.get('nodes', [])),
-                    json.dumps(workflow.get('connections', {})),
-                    'v1'
-                ])
-                conn.commit()
-                log(f"✓ Imported N8N workflow: {workflow.get('name')}")
-                conn.close()
-                return True
-            except sqlite3.OperationalError as e:
-                if "locked" in str(e) and attempt < max_retries - 1:
-                    log(f"⚠ Database busy, retrying... ({attempt + 1}/{max_retries})")
-                    time.sleep(2)
-                    continue
-                raise
+        workflow_host_path = Path("workflows/n8n_test_comfyui_integration.json")
+        workflow_container_path = "/tmp/n8n_test_comfyui_integration.json"
+
+        if not workflow_host_path.exists():
+            log(f"⚠ Workflow file not found: {workflow_host_path}")
+            return True
+
+        copy_result = run([
+            "docker", "compose", "cp",
+            str(workflow_host_path),
+            f"n8n:{workflow_container_path}"
+        ], check=False)
+
+        if copy_result.returncode != 0:
+            log(f"⚠ Could not copy workflow into n8n container: {copy_result.stderr.strip() or copy_result.stdout.strip()}")
+            return False
+
+        result = run([
+            "docker", "compose", "exec", "-T", "n8n",
+            "n8n", "import:workflow",
+            f"--input={workflow_container_path}"
+        ], check=False)
+
+        if result.returncode == 0:
+            log("✓ Imported N8N workflow via n8n CLI")
+            return True
+
+        log(f"⚠ n8n workflow import command failed: {result.stderr.strip() or result.stdout.strip()}")
+        return False
     except Exception as e:
         log(f"⚠ Could not setup workflow: {e}")
-        return True
+        return False
+
+def ensure_owner_setup():
+    """Create N8N owner via REST API if it has not been created yet"""
+    log("👤 Ensuring N8N owner user exists...")
+
+    payload = json.dumps({
+        "email": OWNER_EMAIL,
+        "firstName": OWNER_FIRST_NAME,
+        "lastName": OWNER_LAST_NAME,
+        "password": OWNER_PASSWORD,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        "http://localhost:5678/rest/owner/setup",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            if resp.status in (200, 201):
+                log(f"✓ Owner setup complete: {OWNER_EMAIL}")
+                return True
+    except urllib.error.HTTPError as e:
+        # 400 usually indicates owner already exists in n8n
+        if e.code == 400:
+            log("✓ Owner already initialized")
+            return True
+        log(f"⚠ Owner setup returned HTTP {e.code}")
+        return False
+    except Exception as e:
+        log(f"⚠ Owner setup error: {e}")
+        return False
+
+    return False
 
 def test_comfyui():
     """Test ComfyUI is accessible"""
@@ -221,21 +204,13 @@ def main():
     log("=" * 60)
     log("🚀 AutoComfyN8n - Text-to-Image Integration Test")
     log("=" * 60)
-    log("🔄 Starting fresh with clean database and reimported workflows")
+    log("🔄 Starting integration validation")
     log()
     
     # Ensure containers are running
     if not ensure_containers_running():
         log("✗ Failed to start containers")
         return 1
-    
-    # Reset database for fresh start
-    reset_database()
-    log()
-    
-    # Create admin user
-    create_user()
-    log()
     
     # Wait for services
     log("⏳ Waiting for services to be ready...")
@@ -251,6 +226,12 @@ def main():
     
     # Extra wait for database to be fully initialized
     time.sleep(5)
+
+    # Ensure owner setup is done from Python (not docker bootstrap)
+    if not ensure_owner_setup():
+        log("✗ Failed to setup owner user")
+        return 1
+    log()
     
     # Setup workflows
     ensure_workflows_imported()
@@ -279,9 +260,10 @@ def main():
         log("   4. Click 'Queue Prompt' to generate")
         log()
         log("🔗 To generate via N8N workflow:")
-        log("   1. Open http://localhost:5678 (Login: admin/admin123)")
-        log("   2. Go to 'Test ComfyUI Integration' workflow")
-        log("   3. Click Execute/Play to run")
+        log("   1. Open http://localhost:5678")
+        log(f"   2. Login with {OWNER_EMAIL}/{OWNER_PASSWORD}")
+        log("   3. Go to 'Test ComfyUI Integration' workflow")
+        log("   4. Click Execute/Play to run")
         log()
         log("📁 Generated images will be saved to:")
         log(f"   {Path('comfyui/output').absolute()}")
