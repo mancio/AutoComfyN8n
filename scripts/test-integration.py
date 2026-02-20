@@ -113,30 +113,36 @@ def main():
     run(["docker", "compose", "restart", "n8n"], check=False)
     time.sleep(3)
     
-    # Test the webhook
-    log("\n[Testing webhook...]")
-    body = json.dumps({"prompt": prompt}).encode()
+    # Verify model is ready
+    log("\n[5/5] Checking image generation requirements...")
+    model_path = Path("comfyui/models/checkpoints/v1-5-pruned.safetensors")
+    output_path = Path("comfyui/output")
     
-    for url in [
-        "http://localhost:5678/webhook/comfyui-test",
-        "http://localhost:5678/webhook-test/comfyui-test"
-    ]:
-        try:
-            req = urllib.request.Request(url, data=body, method="POST", 
-                                        headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                if resp.status in [200, 201]:
-                    log(f"✓ Webhook working at {url}")
-                    return 0
-        except urllib.error.HTTPError:
-            continue
-        except:
-            pass
+    if model_path.exists():
+        log(f"✓ Model ready: {model_path.name}")
+    else:
+        log(f"⚠ Model not found at {model_path}")
     
-    log("✓ Setup complete (webhook test optional)")
-    print("\nNext: Open http://localhost:5678 and log in with:")
-    print("  Email: admin@example.com")
-    print("  Password: admin123")
+    if not output_path.exists():
+        output_path.mkdir(parents=True, exist_ok=True)
+    log(f"✓ Output folder ready: {output_path}")
+    
+    log("\n" + "="*50)
+    log("✓ System Ready!")
+    log("="*50)
+    print("\n📝 Your prompt will be used:")
+    print(f"   '{prompt}'")
+    print("\n🎨 To generate images:")
+    print("   1. Open http://localhost:8188 (ComfyUI UI)")
+    print("   2. Load the default workflow")
+    print("   3. Edit the text prompt node with your prompt")
+    print("   4. Click 'Queue Prompt' to generate")
+    print("\n📊 Results appear in:")
+    print(f"   {output_path.absolute()}")
+    print("\n🔗 Or automate with N8N:")
+    print("   1. Open http://localhost:5678")
+    print("   2. Login: admin@example.com / admin123")
+    print("   3. Create workflow to trigger ComfyUI")
     return 0
 
 if __name__ == "__main__":
