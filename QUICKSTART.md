@@ -165,6 +165,30 @@ Invoke-RestMethod -Uri "http://localhost:5678/webhook/test-comfy" `
   -Body '{"prompt": "a beautiful sunset over mountains, oil painting style"}'
 ```
 
+If you enabled N8N basic auth, add credentials:
+
+```powershell
+$cred = New-Object System.Management.Automation.PSCredential("admin", (ConvertTo-SecureString "admin123" -AsPlainText -Force))
+Invoke-RestMethod -Uri "http://localhost:5678/webhook/test-comfy" `
+  -Method POST `
+  -Headers @{"Content-Type"="application/json"} `
+  -Body '{"prompt": "a beautiful sunset over mountains, oil painting style"}' `
+  -Credential $cred
+```
+
+Or run the included scripts (they send credentials automatically):
+
+```powershell
+# PowerShell
+.\scripts\test-integration.ps1
+
+# Python
+python .\scripts\test-integration.py
+
+# Bash (Git Bash/WSL)
+./scripts/test-integration.sh
+```
+
 ### Expected Response:
 
 ```json
