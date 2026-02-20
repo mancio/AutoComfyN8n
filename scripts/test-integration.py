@@ -35,25 +35,35 @@ def ensure_workflow_exists():
         conn.close()
         return True
     
-    # Create a simple workflow in the database
+    # Create a simple workflow with Manual Trigger (no webhook needed)
     log("[Creating N8N workflow...]")
     workflow = {
         "name": "ComfyUI Test",
         "nodes": [
             {
-                "id": "webhook",
-                "name": "Webhook",
-                "type": "n8n-nodes-base.webhook",
+                "id": "manual",
+                "name": "When Clicked",
+                "type": "n8n-nodes-base.manualTrigger",
                 "typeVersion": 1,
                 "position": [250, 300],
+                "parameters": {}
+            },
+            {
+                "id": "notify",
+                "name": "Send Response",
+                "type": "n8n-nodes-base.respondToWebhook",
+                "typeVersion": 1,
+                "position": [500, 300],
                 "parameters": {
-                    "path": "comfyui-test",
-                    "httpMethod": "POST",
-                    "responseMode": "onReceived"
+                    "responseCode": 200
                 }
             }
         ],
-        "connections": {},
+        "connections": {
+            "When Clicked": {
+                "main": [[{"node": "Send Response", "type": "main", "index": 0}]]
+            }
+        },
         "active": True,
         "settings": {},
         "versionId": "v1"
@@ -140,8 +150,15 @@ def main():
     log("✓ System Ready!")
     log("="*60)
     print(f"\nYour prompt: '{prompt}'")
-    print("\n🎨 To generate images, open ComfyUI UI:")
-    print("   http://localhost:8188")
+    print("\n� To execute the workflow:")
+    print("   1. Open http://localhost:5678")
+    print("   2. Click on 'ComfyUI Test' workflow")
+    print("   3. Click the Play/Execute button to run")
+    print("\n🎨 To generate images:")
+    print("   1. Open http://localhost:8188 (ComfyUI UI)")
+    print("   2. Use the default workflow")
+    print("   3. Edit text prompt to your custom text")
+    print("   4. Click 'Queue Prompt' to generate")
     print("\n📁 Images will be saved to:")
     print(f"   {output_path.absolute()}")
     return 0
