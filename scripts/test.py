@@ -44,25 +44,54 @@ def ensure_containers_running():
         log(f"✗ Error starting containers: {e}")
         return False
 
+def reset_database():
+    """Reset N8N database to clean state with default credentials"""
+    log("🔄 Resetting database...")
+    
+    try:
+        db_path = Path("n8n_data/database.sqlite")
+        
+        # Stop n8n container
+        run(["docker", "compose", "stop", "n8n"], check=False)
+        time.sleep(2)
+        
+        # Remove database files
+        if db_path.exists():
+            db_path.unlink()
+            log("✓ Removed old database")
+        
+        # Remove WAL files
+        for wal_file in Path("n8n_data").glob("database.sqlite*"):
+            try:
+                wal_file.unlink()
+            except:
+                pass
+        
+        # Start n8n container
+        run(["docker", "compose", "up", "-d", "n8n"], check=False)
+        log("✓ Database reset, container restarted")
+        time.sleep(3)
+        
+        return True
+    except Exception as e:
+        log(f"⚠ Could not reset database: {e}")
+        return True
+
 def ensure_workflows_imported():
     """Import N8N workflow from file"""
-    log("🔧 Setting up workflows...")
+    log("🔧 Importing workflows...")
     
     db_path = Path("n8n_data/database.sqlite")
     if not db_path.exists():
-        log("⚠ Database not found yet, skipping workflow setup")
-        return True
+        log("⚠ Database not found, retrying...")
+        time.sleep(2)
+        if not db_path.exists():
+            log("⚠ Database still not ready, skipping workflow import")
+            return True
     
     try:
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
-        
-        # Check if workflow already exists
-        cur.execute("SELECT id FROM workflow_entity WHERE name = ?", ["Test ComfyUI Integration"])
-        if cur.fetchone():
-            log("✓ N8N workflow already imported")
-            conn.close()
-            return True
         
         # Load and import workflow
         workflow_file = Path("workflows/n8n_test_comfyui_integration.json")
@@ -149,12 +178,17 @@ def main():
     log("=" * 60)
     log("🚀 AutoComfyN8n - Text-to-Image Integration Test")
     log("=" * 60)
+    log("🔄 Starting fresh with clean database and reimported workflows")
     log()
     
     # Ensure containers are running
     if not ensure_containers_running():
         log("✗ Failed to start containers")
         return 1
+    
+    # Reset database for fresh start
+    reset_database()
+    log()
     
     # Wait for services
     log("⏳ Waiting for services to be ready...")
