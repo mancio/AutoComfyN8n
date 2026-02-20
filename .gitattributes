@@ -1,0 +1,2 @@
+# Keep bash scripts with LF line endings
+*.sh text eol=lf
